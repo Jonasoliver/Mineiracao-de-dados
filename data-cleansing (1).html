@@ -1,0 +1,1242 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Padronização de Dados Textuais — Data Cleansing</title>
+
+<!-- Fonts: JetBrains Mono para código, Sora para textos -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Sora:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+
+<style>
+/* === CATPPUCCIN MOCHA PALETTE === */
+:root {
+  --crust:     #11111b;
+  --mantle:    #181825;
+  --base:      #1e1e2e;
+  --surface0:  #313244;
+  --surface1:  #45475a;
+  --surface2:  #585b70;
+  --overlay0:  #6c7086;
+  --overlay1:  #7f849c;
+  --overlay2:  #9399b2;
+  --subtext0:  #a6adc8;
+  --subtext1:  #bac2de;
+  --text:      #cdd6f4;
+  --lavender:  #b4befe;
+  --blue:      #89b4fa;
+  --sapphire:  #74c7ec;
+  --sky:       #89dceb;
+  --teal:      #94e2d5;
+  --green:     #a6e3a1;
+  --yellow:    #f9e2af;
+  --peach:     #fab387;
+  --maroon:    #eba0ac;
+  --red:       #f38ba8;
+  --mauve:     #cba6f7;
+  --pink:      #f5c2e7;
+  --flamingo:  #f2cdcd;
+  --rosewater: #f5e0dc;
+
+  --font-body: 'Sora', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* === VIEWPORT-BASE RESPONSIVE VARS === */
+  --slide-padding: clamp(1.5rem, 5vw, 4rem);
+  --heading-xl: clamp(2rem, 5vw, 4rem);
+  --heading-lg: clamp(1.4rem, 3.5vw, 2.4rem);
+  --heading-md: clamp(1.1rem, 2.5vw, 1.6rem);
+  --body-lg: clamp(0.85rem, 1.8vw, 1.15rem);
+  --body-sm: clamp(0.72rem, 1.4vw, 0.95rem);
+  --mono-md: clamp(0.7rem, 1.4vw, 0.92rem);
+  --gap-lg: clamp(1rem, 3vh, 2.5rem);
+  --gap-md: clamp(0.6rem, 1.8vh, 1.4rem);
+  --gap-sm: clamp(0.3rem, 1vh, 0.8rem);
+  --radius: 10px;
+}
+
+/* === RESET & BASE === */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 100%; height: 100%;
+  background: var(--crust);
+  font-family: var(--font-body);
+  color: var(--text);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Center deck at 16:9 aspect ratio, filling viewport */
+body {
+  margin: 0;
+}
+
+/* === SLIDE SYSTEM === */
+.deck {
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  max-width: calc(100dvh * 16 / 9);
+  max-height: calc(100vw * 9 / 16);
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.slide {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  padding: var(--slide-padding);
+  background: var(--base);
+  opacity: 0;
+  transform: translateX(60px);
+  transition: opacity 0.45s cubic-bezier(.4,0,.2,1), transform 0.45s cubic-bezier(.4,0,.2,1);
+  pointer-events: none;
+}
+
+.slide.active {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: all;
+  z-index: 2;
+}
+
+.slide.exit {
+  opacity: 0;
+  transform: translateX(-60px);
+  z-index: 1;
+}
+
+/* === SLIDE BACKGROUNDS === */
+.slide-bg-crust { background: var(--crust); }
+.slide-bg-mantle { background: var(--mantle); }
+
+/* === DECORATIVE ELEMENTS === */
+.deco-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--surface0) 1px, transparent 1px),
+    linear-gradient(90deg, var(--surface0) 1px, transparent 1px);
+  background-size: 40px 40px;
+  opacity: 0.25;
+  pointer-events: none;
+}
+
+.deco-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  pointer-events: none;
+  opacity: 0.18;
+}
+
+.deco-line {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 4px;
+  height: 100%;
+  background: linear-gradient(180deg, transparent, var(--mauve), transparent);
+}
+
+/* === TAG / BADGE === */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  font-family: var(--font-mono);
+  font-size: var(--body-sm);
+  color: var(--mauve);
+  background: color-mix(in srgb, var(--mauve) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--mauve) 30%, transparent);
+  border-radius: 999px;
+  padding: 0.2em 0.8em;
+  margin-bottom: var(--gap-md);
+  letter-spacing: 0.05em;
+}
+
+/* === TYPOGRAPHY === */
+h1 {
+  font-size: var(--heading-xl);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+h2 {
+  font-size: var(--heading-lg);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  margin-bottom: var(--gap-md);
+}
+
+h3 {
+  font-size: var(--heading-md);
+  font-weight: 600;
+  color: var(--subtext1);
+  margin-bottom: var(--gap-sm);
+}
+
+p {
+  font-size: var(--body-lg);
+  line-height: 1.65;
+  color: var(--subtext1);
+  max-width: 60ch;
+}
+
+.accent-mauve  { color: var(--mauve); }
+.accent-blue   { color: var(--blue); }
+.accent-green  { color: var(--green); }
+.accent-peach  { color: var(--peach); }
+.accent-red    { color: var(--red); }
+.accent-teal   { color: var(--teal); }
+.accent-yellow { color: var(--yellow); }
+.accent-sky    { color: var(--sky); }
+
+/* === CONTENT WRAPPERS === */
+.content {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 1100px;
+}
+
+.content-center {
+  align-self: center;
+  text-align: center;
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+}
+
+/* === SPLIT LAYOUT === */
+.split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--gap-lg);
+  width: 100%;
+  align-items: start;
+}
+
+/* === CARD GRID === */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: clamp(0.5rem, 1.5vw, 1rem);
+  width: 100%;
+  margin-top: var(--gap-md);
+}
+
+.card-grid-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.card {
+  background: var(--surface0);
+  border: 1px solid var(--surface1);
+  border-radius: var(--radius);
+  padding: clamp(0.8rem, 2vw, 1.4rem);
+  transition: border-color 0.2s;
+}
+
+.card:hover { border-color: var(--mauve); }
+
+.card-icon {
+  font-size: clamp(1.2rem, 2.5vw, 1.8rem);
+  margin-bottom: var(--gap-sm);
+  display: block;
+}
+
+.card h3 {
+  font-size: var(--body-lg);
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 0.3em;
+}
+
+.card p {
+  font-size: var(--body-sm);
+  color: var(--subtext0);
+  max-width: none;
+}
+
+/* === CODE BLOCK === */
+.code-block {
+  background: var(--crust);
+  border: 1px solid var(--surface1);
+  border-radius: var(--radius);
+  padding: clamp(0.8rem, 2vw, 1.4rem);
+  font-family: var(--font-mono);
+  font-size: var(--mono-md);
+  line-height: 1.7;
+  width: 100%;
+  overflow: hidden;
+}
+
+.code-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.8rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid var(--surface1);
+  font-size: var(--body-sm);
+  color: var(--overlay1);
+}
+
+.code-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+}
+
+.code-line { display: block; }
+.tok-comment { color: var(--overlay1); }
+.tok-keyword { color: var(--mauve); }
+.tok-string  { color: var(--green); }
+.tok-func    { color: var(--blue); }
+.tok-var     { color: var(--peach); }
+.tok-param   { color: var(--teal); }
+.tok-op      { color: var(--sky); }
+.tok-num     { color: var(--yellow); }
+
+/* === BULLET LIST === */
+.bullet-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+  margin-top: var(--gap-md);
+}
+
+.bullet-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7em;
+  font-size: var(--body-lg);
+  color: var(--subtext1);
+  line-height: 1.5;
+}
+
+.bullet-list li::before {
+  content: '▸';
+  color: var(--mauve);
+  flex-shrink: 0;
+  margin-top: 0.08em;
+}
+
+/* === BEFORE/AFTER TABLE === */
+.ba-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: var(--mono-md);
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--surface1);
+}
+
+.ba-table th {
+  background: var(--surface0);
+  color: var(--subtext0);
+  font-size: var(--body-sm);
+  font-family: var(--font-body);
+  font-weight: 600;
+  text-align: left;
+  padding: 0.5em 0.9em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.ba-table td {
+  padding: 0.45em 0.9em;
+  border-top: 1px solid var(--surface0);
+  vertical-align: middle;
+}
+
+.ba-table tr:nth-child(even) td { background: color-mix(in srgb, var(--surface0) 40%, transparent); }
+
+.bad  { color: var(--red); }
+.good { color: var(--green); }
+.arrow { color: var(--overlay1); text-align: center; }
+
+/* === PIPELINE STEPS === */
+.pipeline {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  width: 100%;
+  margin-top: var(--gap-md);
+  overflow: hidden;
+  border-radius: var(--radius);
+  border: 1px solid var(--surface1);
+}
+
+.pipe-step {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: clamp(0.6rem, 1.5vw, 1.1rem) clamp(0.4rem, 1vw, 0.8rem);
+  background: var(--surface0);
+  position: relative;
+  gap: 0.3em;
+}
+
+.pipe-step + .pipe-step {
+  border-left: 1px solid var(--surface1);
+}
+
+.pipe-step + .pipe-step::before {
+  content: '→';
+  position: absolute;
+  left: -0.7em;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--overlay0);
+  font-size: var(--body-sm);
+  z-index: 3;
+  background: var(--surface1);
+  width: 1.4em;
+  height: 1.4em;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pipe-num {
+  font-family: var(--font-mono);
+  font-size: var(--body-sm);
+  color: var(--overlay1);
+}
+
+.pipe-label {
+  font-size: var(--body-sm);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.pipe-sub {
+  font-size: clamp(0.6rem, 1.1vw, 0.75rem);
+  color: var(--subtext0);
+}
+
+/* === QUOTE === */
+.quote-block {
+  border-left: 3px solid var(--mauve);
+  padding-left: clamp(1rem, 2vw, 1.8rem);
+  margin: var(--gap-md) 0;
+}
+
+.quote-block blockquote {
+  font-size: var(--heading-md);
+  font-weight: 300;
+  line-height: 1.5;
+  color: var(--text);
+  font-style: italic;
+}
+
+.quote-block cite {
+  font-size: var(--body-sm);
+  color: var(--overlay1);
+  font-family: var(--font-mono);
+  font-style: normal;
+  margin-top: 0.5em;
+  display: block;
+}
+
+/* === STAT BOXES === */
+.stat-row {
+  display: flex;
+  gap: var(--gap-md);
+  margin-top: var(--gap-md);
+  width: 100%;
+}
+
+.stat-box {
+  flex: 1;
+  background: var(--surface0);
+  border: 1px solid var(--surface1);
+  border-radius: var(--radius);
+  padding: clamp(0.8rem, 2vw, 1.4rem);
+  text-align: center;
+}
+
+.stat-num {
+  font-size: clamp(1.8rem, 4vw, 3rem);
+  font-weight: 800;
+  font-family: var(--font-mono);
+  line-height: 1;
+}
+
+.stat-label {
+  font-size: var(--body-sm);
+  color: var(--subtext0);
+  margin-top: 0.3em;
+}
+
+/* === NAV === */
+#nav {
+  position: fixed;
+  bottom: clamp(1rem, 3vh, 2rem);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  z-index: 100;
+  background: color-mix(in srgb, var(--crust) 80%, transparent);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--surface1);
+  border-radius: 999px;
+  padding: 0.5rem 1rem;
+}
+
+.nav-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--surface2);
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+
+.nav-dot.active {
+  background: var(--mauve);
+  width: 20px;
+  border-radius: 999px;
+}
+
+#slide-counter {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--overlay1);
+  margin-left: 0.5rem;
+  min-width: 3ch;
+  text-align: right;
+}
+
+/* === ENTER ANIMATIONS === */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.slide.active .anim-tag   { animation: fadeUp 0.4s ease both 0.05s; }
+.slide.active .anim-h1    { animation: fadeUp 0.5s ease both 0.15s; }
+.slide.active .anim-sub   { animation: fadeUp 0.5s ease both 0.28s; }
+.slide.active .anim-body  { animation: fadeUp 0.5s ease both 0.38s; }
+.slide.active .anim-extra { animation: fadeUp 0.5s ease both 0.48s; }
+.slide.active .anim-grid  { animation: fadeIn 0.6s ease both 0.35s; }
+
+/* === HEIGHT BREAKPOINTS === */
+@media (max-height: 700px) {
+  :root {
+    --heading-xl: clamp(1.6rem, 4vw, 2.8rem);
+    --heading-lg: clamp(1.1rem, 2.8vw, 1.8rem);
+    --heading-md: clamp(0.9rem, 2vw, 1.3rem);
+    --gap-lg: clamp(0.6rem, 2vh, 1.4rem);
+    --gap-md: clamp(0.4rem, 1.2vh, 0.9rem);
+    --gap-sm: clamp(0.2rem, 0.6vh, 0.5rem);
+    --slide-padding: clamp(1rem, 3vw, 2.5rem);
+  }
+}
+
+@media (max-height: 600px) {
+  :root {
+    --heading-xl: clamp(1.3rem, 3.5vw, 2.2rem);
+    --heading-lg: clamp(1rem, 2.5vw, 1.5rem);
+    --gap-lg: clamp(0.4rem, 1.5vh, 1rem);
+    --gap-md: clamp(0.3rem, 1vh, 0.7rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slide { transition: none; }
+  .slide.active * { animation: none !important; }
+}
+</style>
+</head>
+<body>
+
+<div class="deck" id="deck">
+
+  <!-- ============================================================ -->
+  <!-- SLIDE 1 — TÍTULO -->
+  <!-- ============================================================ -->
+  <div class="slide slide-bg-crust active" id="slide-0">
+    <div class="deco-grid"></div>
+    <div class="deco-blob" style="width:500px;height:500px;background:var(--mauve);top:-150px;right:-100px;"></div>
+    <div class="deco-blob" style="width:350px;height:350px;background:var(--blue);bottom:-100px;left:30%;"></div>
+    <div class="deco-line"></div>
+
+    <div class="content" style="max-width:900px;">
+      <div class="tag anim-tag">⟨data-cleansing⟩</div>
+      <h1 class="anim-h1">
+        Padronização de<br>
+        <span class="accent-mauve">Dados Textuais</span>
+      </h1>
+      <p class="anim-sub" style="font-size:var(--heading-md);color:var(--subtext0);font-weight:300;margin-top:var(--gap-md);max-width:55ch;">
+        Técnicas, pipelines e boas práticas para transformar texto sujo em dados confiáveis.
+      </p>
+      <p class="anim-body" style="font-family:var(--font-mono);font-size:var(--body-sm);color:var(--overlay0);margin-top:var(--gap-lg);">
+        Data Cleansing &nbsp;/&nbsp; NLP Preprocessing &nbsp;/&nbsp; Data Quality
+      </p>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SLIDE 2 — O PROBLEMA -->
+  <!-- ============================================================ -->
+  <div class="slide slide-bg-mantle" id="slide-1">
+    <div class="deco-blob" style="width:400px;height:400px;background:var(--red);top:-180px;right:-80px;opacity:0.12;"></div>
+
+    <div class="content">
+      <div class="tag anim-tag" style="color:var(--red);border-color:color-mix(in srgb, var(--red) 30%, transparent);background:color-mix(in srgb, var(--red) 10%, transparent);">⚠ o problema</div>
+      <h2 class="anim-h1">Por que dados textuais são problemáticos?</h2>
+
+      <div class="stat-row anim-sub">
+        <div class="stat-box">
+          <div class="stat-num accent-red">80%</div>
+          <div class="stat-label">do tempo de um projeto de dados é gasto limpando dados</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-num accent-peach">~3×</div>
+          <div class="stat-label">mais erros em sistemas que não tratam texto bruto</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-num accent-yellow">∞</div>
+          <div class="stat-label">variações possíveis para um mesmo valor semântico</div>
+        </div>
+      </div>
+
+      <ul class="bullet-list anim-body">
+        <li>Inconsistências de <strong>capitalização</strong>: "São Paulo" vs "são paulo" vs "SAO PAULO"</li>
+        <li>Espaços extras, caracteres especiais e <strong>encoding</strong> corrompido</li>
+        <li>Valores nulos disfarçados: "N/A", "—", ".", "-", " " (espaço em branco)</li>
+        <li>Abreviações e sinônimos não padronizados entre fontes diferentes</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SLIDE 3 — ANTES / DEPOIS -->
+  <!-- ============================================================ -->
+  <div class="slide" id="slide-2">
+    <div class="deco-line" style="background:linear-gradient(180deg,transparent,var(--green),transparent);"></div>
+
+    <div class="content">
+      <div class="tag anim-tag" style="color:var(--green);border-color:color-mix(in srgb, var(--green) 30%, transparent);background:color-mix(in srgb, var(--green) 10%, transparent);">antes → depois</div>
+      <h2 class="anim-h1">Exemplos de Padronização</h2>
+
+      <table class="ba-table anim-sub">
+        <thead>
+          <tr>
+            <th>Dado Original (sujo)</th>
+            <th class="arrow">→</th>
+            <th>Dado Padronizado</th>
+            <th>Técnica</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="bad">&nbsp;&nbsp;João &nbsp;Silva &nbsp;</td>
+            <td class="arrow">→</td>
+            <td class="good">João Silva</td>
+            <td style="color:var(--subtext0)">strip + normalização de espaços</td>
+          </tr>
+          <tr>
+            <td class="bad">sao paulo / SP / S.Paulo</td>
+            <td class="arrow">→</td>
+            <td class="good">São Paulo</td>
+            <td style="color:var(--subtext0)">dicionário de mapeamento</td>
+          </tr>
+          <tr>
+            <td class="bad">R$ 1.500,00 / R$1500</td>
+            <td class="arrow">→</td>
+            <td class="good">1500.00</td>
+            <td style="color:var(--subtext0)">regex extração numérica</td>
+          </tr>
+          <tr>
+            <td class="bad">CPF: 123.456.789-01</td>
+            <td class="arrow">→</td>
+            <td class="good">12345678901</td>
+            <td style="color:var(--subtext0)">regex substituição</td>
+          </tr>
+          <tr>
+            <td class="bad">N/A / — / . / NULL</td>
+            <td class="arrow">→</td>
+            <td class="good">NaN (padrão Python)</td>
+            <td style="color:var(--subtext0)">replace por valor nulo</td>
+          </tr>
+          <tr>
+            <td class="bad">E-mail: emailExemplo@gmail.com</td>
+            <td class="arrow">→</td>
+            <td class="good">emailexemplo@gmail.com</td>
+            <td style="color:var(--subtext0)">lowercase + strip</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SLIDE 4 — TÉCNICAS PRINCIPAIS (GRID) -->
+  <!-- ============================================================ -->
+  <div class="slide" id="slide-3">
+    <div class="deco-blob" style="width:450px;height:450px;background:var(--blue);bottom:-200px;right:-100px;opacity:0.12;"></div>
+
+    <div class="content">
+      <div class="tag anim-tag">🛠 técnicas</div>
+      <h2 class="anim-h1">Técnicas de Padronização Textual</h2>
+
+      <div class="card-grid anim-grid">
+        <div class="card">
+          <span class="card-icon">✂️</span>
+          <h3>Strip & Trim</h3>
+          <p>Remove espaços em branco nas bordas e normaliza múltiplos espaços internos.</p>
+        </div>
+        <div class="card">
+          <span class="card-icon">🔡</span>
+          <h3>Case Normalization</h3>
+          <p>Lowercase, uppercase ou title case consistente para garantir comparações corretas.</p>
+        </div>
+        <div class="card">
+          <span class="card-icon">🔤</span>
+          <h3>Remoção de Acentos</h3>
+          <p>Unidecode ou unicodedata para normalizar caracteres e permitir joins seguros.</p>
+        </div>
+        <div class="card">
+          <span class="card-icon">🔍</span>
+          <h3>Regex Patterns</h3>
+          <p>Extração e substituição estruturada: CPF, CNPJ, telefone, CEP, moeda.</p>
+        </div>
+        <div class="card">
+          <span class="card-icon">📖</span>
+          <h3>Dicionários de Mapeamento</h3>
+          <p>De → para fixo para abreviações, siglas e sinônimos de domínio.</p>
+        </div>
+        <div class="card">
+          <span class="card-icon">🎯</span>
+          <h3>Fuzzy Matching</h3>
+          <p>Distância de Levenshtein para agrupar valores similares (fuzzywuzzy / rapidfuzz).</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SLIDE 5 — CÓDIGO PYTHON (BÁSICO) -->
+  <!-- ============================================================ -->
+  <div class="slide slide-bg-crust" id="slide-4">
+    <div class="deco-line" style="background:linear-gradient(180deg,transparent,var(--blue),transparent);"></div>
+
+    <div class="content">
+      <div class="tag anim-tag" style="color:var(--blue);border-color:color-mix(in srgb, var(--blue) 30%, transparent);background:color-mix(in srgb, var(--blue) 10%, transparent);"># código</div>
+      <h2 class="anim-h1">Padronização Básica com Pandas</h2>
+
+      <div class="code-block anim-sub">
+        <div class="code-header">
+          <div class="code-dot" style="background:#f38ba8"></div>
+          <div class="code-dot" style="background:#f9e2af"></div>
+          <div class="code-dot" style="background:#a6e3a1"></div>
+          <span style="margin-left:0.5rem;">cleanse.py</span>
+        </div>
+        <code>
+<span class="code-line"><span class="tok-keyword">import</span> <span class="tok-param">pandas</span> <span class="tok-keyword">as</span> <span class="tok-var">pd</span></span>
+<span class="code-line"><span class="tok-keyword">import</span> <span class="tok-param">re</span></span>
+<span class="code-line"></span>
+<span class="code-line"><span class="tok-comment"># Normalização de texto: strip, lowercase, espaços</span></span>
+<span class="code-line"><span class="tok-keyword">def</span> <span class="tok-func">normalizar_texto</span>(<span class="tok-param">valor</span>: <span class="tok-var">str</span>) -&gt; <span class="tok-var">str</span>:</span>
+<span class="code-line">    <span class="tok-keyword">if</span> <span class="tok-var">pd</span>.<span class="tok-func">isna</span>(<span class="tok-param">valor</span>): <span class="tok-keyword">return</span> <span class="tok-var">pd</span>.<span class="tok-param">NA</span></span>
+<span class="code-line">    <span class="tok-param">valor</span> = <span class="tok-var">str</span>(<span class="tok-param">valor</span>).<span class="tok-func">strip</span>().<span class="tok-func">lower</span>()</span>
+<span class="code-line">    <span class="tok-keyword">return</span> <span class="tok-param">re</span>.<span class="tok-func">sub</span>(<span class="tok-string">r'\s+'</span>, <span class="tok-string">' '</span>, <span class="tok-param">valor</span>)</span>
+<span class="code-line"></span>
+<span class="code-line"><span class="tok-comment"># Substituir nulos disfarçados</span></span>
+<span class="code-line"><span class="tok-var">NULOS</span> = {<span class="tok-string">'n/a'</span>, <span class="tok-string">'na'</span>, <span class="tok-string">'—'</span>, <span class="tok-string">'-'</span>, <span class="tok-string">'.'</span>, <span class="tok-string">'null'</span>, <span class="tok-string">''</span>}</span>
+<span class="code-line"><span class="tok-var">df</span>[<span class="tok-string">'coluna'</span>] = <span class="tok-var">df</span>[<span class="tok-string">'coluna'</span>].<span class="tok-func">apply</span>(</span>
+<span class="code-line">    <span class="tok-keyword">lambda</span> <span class="tok-param">x</span>: <span class="tok-var">pd</span>.<span class="tok-param">NA</span> <span class="tok-keyword">if</span> <span class="tok-func">normalizar_texto</span>(<span class="tok-param">x</span>) <span class="tok-keyword">in</span> <span class="tok-var">NULOS</span> <span class="tok-keyword">else</span> <span class="tok-func">normalizar_texto</span>(<span class="tok-param">x</span>)</span>
+<span class="code-line">)</span>
+        </code>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SLIDE 6 — FUZZY MATCHING (CONCEITO + CÓDIGO) -->
+  <!-- ============================================================ -->
+  <div class="slide slide-bg-crust" id="slide-5">
+    <div class="deco-line" style="background:linear-gradient(180deg,transparent,var(--teal),transparent);"></div>
+
+    <div class="content">
+      <div class="tag anim-tag" style="color:var(--teal);border-color:color-mix(in srgb, var(--teal) 30%, transparent);background:color-mix(in srgb, var(--teal) 10%, transparent);">fuzzy matching</div>
+      <h2 class="anim-h1">Fuzzy Matching — Similaridade Textual</h2>
+
+      <div class="split anim-sub" style="gap:clamp(0.5rem,1.5vw,1rem);align-items:start;">
+        <div>
+          <p style="font-size:var(--body-lg);color:var(--subtext1);max-width:none;margin-bottom:var(--gap-md);">
+            Nem sempre dois textos idênticos representam a mesma entidade — e o contrário também é verdade. O fuzzy matching mede o <span class="accent-teal">grau de semelhança</span> entre strings usando distâncias como Levenshtein (quantas edições mínimas transformam uma string em outra).
+          </p>
+          <table class="ba-table" style="font-size:var(--body-sm);">
+            <thead>
+              <tr>
+                <th>Entrada</th>
+                <th>Candidato</th>
+                <th style="text-align:center">Score</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="bad">Sao Paulo</td>
+                <td class="good">São Paulo</td>
+                <td style="text-align:center;color:var(--green)">97</td>
+              </tr>
+              <tr>
+                <td class="bad">Campians</td>
+                <td class="good">Campinas</td>
+                <td style="text-align:center;color:var(--yellow)">88</td>
+              </tr>
+              <tr>
+                <td class="bad">Rio de Jneiro</td>
+                <td class="good">Rio de Janeiro</td>
+                <td style="text-align:center;color:var(--yellow)">93</td>
+              </tr>
+              <tr>
+                <td class="bad">Manaus</td>
+                <td class="good">Brasília</td>
+                <td style="text-align:center;color:var(--red)">12</td>
+              </tr>
+            </tbody>
+          </table>
+          <p style="font-size:var(--body-sm);color:var(--overlay1);margin-top:var(--gap-sm);max-width:none;">Score de 0 a 100. Um limiar (threshold) define o que é aceito — valores abaixo ficam como nulo para revisão manual.</p>
+        </div>
+
+        <div class="code-block">
+          <div class="code-header">
+            <div class="code-dot" style="background:#f38ba8"></div>
+            <div class="code-dot" style="background:#f9e2af"></div>
+            <div class="code-dot" style="background:#a6e3a1"></div>
+            <span>fuzzy_match.py</span>
+          </div>
+          <code>
+<span class="code-line"><span class="tok-keyword">from</span> <span class="tok-param">rapidfuzz</span> <span class="tok-keyword">import</span> <span class="tok-param">process</span>, <span class="tok-param">fuzz</span></span>
+<span class="code-line"></span>
+<span class="code-line"><span class="tok-var">CIDADES</span> = [<span class="tok-string">"São Paulo"</span>, <span class="tok-string">"Campinas"</span>,</span>
+<span class="code-line">           <span class="tok-string">"Rio de Janeiro"</span>, <span class="tok-string">"Manaus"</span>]</span>
+<span class="code-line"></span>
+<span class="code-line"><span class="tok-keyword">def</span> <span class="tok-func">corrigir_cidade</span>(<span class="tok-param">entrada</span>, <span class="tok-param">threshold</span>=<span class="tok-num">85</span>):</span>
+<span class="code-line">    <span class="tok-comment"># token_sort_ratio: ignora ordem das palavras</span></span>
+<span class="code-line">    <span class="tok-param">match</span>, <span class="tok-param">score</span>, <span class="tok-op">_</span> = <span class="tok-var">process</span>.<span class="tok-func">extractOne</span>(</span>
+<span class="code-line">        <span class="tok-param">entrada</span>, <span class="tok-var">CIDADES</span>,</span>
+<span class="code-line">        <span class="tok-param">scorer</span>=<span class="tok-var">fuzz</span>.<span class="tok-param">token_sort_ratio</span></span>
+<span class="code-line">    )</span>
+<span class="code-line">    <span class="tok-comment"># Abaixo do threshold → NaN (revisão manual)</span></span>
+<span class="code-line">    <span class="tok-keyword">if</span> <span class="tok-param">score</span> &gt;= <span class="tok-param">threshold</span>:</span>
+<span class="code-line">        <span class="tok-keyword">return</span> <span class="tok-param">match</span></span>
+<span class="code-line">    <span class="tok-keyword">return</span> <span class="tok-var">pd</span>.<span class="tok-param">NA</span></span>
+          </code>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SLIDE 7 — PIPELINE COMPLETO -->
+  <!-- ============================================================ -->
+  <div class="slide slide-bg-mantle" id="slide-6">
+    <div class="deco-blob" style="width:500px;height:300px;background:var(--mauve);top:50%;left:50%;transform:translate(-50%,-50%);opacity:0.08;border-radius:50%;"></div>
+
+    <div class="content">
+      <div class="tag anim-tag">⚙ pipeline</div>
+      <h2 class="anim-h1">Pipeline de Limpeza Textual</h2>
+
+      <div class="pipeline anim-sub">
+        <div class="pipe-step">
+          <span class="pipe-num">01</span>
+          <span class="pipe-label" style="color:var(--peach)">Ingestão</span>
+          <span class="pipe-sub">CSV / DB / API</span>
+        </div>
+        <div class="pipe-step">
+          <span class="pipe-num">02</span>
+          <span class="pipe-label" style="color:var(--yellow)">Auditoria</span>
+          <span class="pipe-sub">profile + missings</span>
+        </div>
+        <div class="pipe-step">
+          <span class="pipe-num">03</span>
+          <span class="pipe-label" style="color:var(--green)">Normalização</span>
+          <span class="pipe-sub">strip, case, encoding</span>
+        </div>
+        <div class="pipe-step">
+          <span class="pipe-num">04</span>
+          <span class="pipe-label" style="color:var(--teal)">Estruturação</span>
+          <span class="pipe-sub">regex, parsing</span>
+        </div>
+        <div class="pipe-step">
+          <span class="pipe-num">05</span>
+          <span class="pipe-label" style="color:var(--blue)">Deduplicação</span>
+          <span class="pipe-sub">fuzzy matching</span>
+        </div>
+        <div class="pipe-step">
+          <span class="pipe-num">06</span>
+          <span class="pipe-label" style="color:var(--mauve)">Validação</span>
+          <span class="pipe-sub">schema + testes</span>
+        </div>
+        <div class="pipe-step">
+          <span class="pipe-num">07</span>
+          <span class="pipe-label" style="color:var(--lavender)">Saída</span>
+          <span class="pipe-sub">dados confiáveis</span>
+        </div>
+      </div>
+
+      <ul class="bullet-list anim-body">
+        <li><strong style="color:var(--yellow)">Auditoria primeiro</strong> — nunca limpe sem antes perfilar o dado (pandas-profiling, ydata-profiling)</li>
+        <li><strong style="color:var(--green)">Idempotência</strong> — cada etapa deve poder ser reexecutada sem efeitos colaterais</li>
+        <li><strong style="color:var(--blue)">Rastreabilidade</strong> — guarde o dado original; armazene um log de transformações</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SLIDE 8 — ENCODING: PROBLEMAS CONCRETOS -->
+  <!-- ============================================================ -->
+  <div class="slide" id="slide-7">
+    <div class="deco-line" style="background:linear-gradient(180deg,transparent,var(--peach),transparent);"></div>
+
+    <div class="content">
+      <div class="tag anim-tag" style="color:var(--peach);border-color:color-mix(in srgb, var(--peach) 30%, transparent);background:color-mix(in srgb, var(--peach) 10%, transparent);">encoding</div>
+      <h2 class="anim-h1">Encoding — Quando os bytes mentem</h2>
+
+      <div class="split anim-sub" style="align-items:start;gap:clamp(0.8rem,2vw,1.8rem);">
+        <div>
+          <h3 style="color:var(--peach);margin-bottom:var(--gap-sm);">Windows-1252 misturado com UTF-8</h3>
+          <p style="max-width:none;font-size:var(--body-lg);margin-bottom:var(--gap-sm);">
+            Quando linhas de um CSV são salvas por sistemas diferentes — por exemplo, uma exportação do Windows e outra do Linux — o mesmo arquivo pode conter dois encodings distintos. O Python lê tudo como UTF-8 e encontra bytes inválidos no meio do caminho.
+          </p>
+          <div class="code-block" style="margin-top:var(--gap-sm);">
+            <div class="code-header">
+              <div class="code-dot" style="background:#f38ba8"></div>
+              <div class="code-dot" style="background:#f9e2af"></div>
+              <span>erro típico</span>
+            </div>
+            <code>
+<span class="code-line"><span class="tok-comment"># Linha 1 (UTF-8):   "São Paulo" → ok</span></span>
+<span class="code-line"><span class="tok-comment"># Linha 47 (cp1252): "Ação" → bytes \xc3\xa7 ≠ \xe7</span></span>
+<span class="code-line"><span class="tok-var">UnicodeDecodeError</span>: <span class="tok-string">'utf-8'</span> codec can't decode</span>
+<span class="code-line">  byte <span class="tok-num">0xe7</span> in position <span class="tok-num">312</span></span>
+<span class="code-line"></span>
+<span class="code-line"><span class="tok-comment"># Solução: chardet detecta o encoding</span></span>
+<span class="code-line"><span class="tok-keyword">import</span> <span class="tok-param">chardet</span></span>
+<span class="code-line"><span class="tok-param">raw</span> = <span class="tok-func">open</span>(<span class="tok-string">'dados.csv'</span>, <span class="tok-string">'rb'</span>).<span class="tok-func">read</span>()</span>
+<span class="code-line"><span class="tok-var">enc</span> = <span class="tok-var">chardet</span>.<span class="tok-func">detect</span>(<span class="tok-param">raw</span>)[<span class="tok-string">'encoding'</span>]</span>
+<span class="code-line"><span class="tok-var">df</span> = <span class="tok-var">pd</span>.<span class="tok-func">read_csv</span>(<span class="tok-string">'dados.csv'</span>, <span class="tok-param">encoding</span>=<span class="tok-var">enc</span>)</span>
+            </code>
+          </div>
+        </div>
+
+        <div>
+          <h3 style="color:var(--yellow);margin-bottom:var(--gap-sm);">BOM — Byte Order Mark</h3>
+          <p style="max-width:none;font-size:var(--body-lg);margin-bottom:var(--gap-sm);">
+            O Excel adiciona automaticamente 3 bytes invisíveis (<span class="accent-yellow">EF BB BF</span>) no início de arquivos UTF-8. Ao fazer <code style="color:var(--mauve)">df.columns[0]</code>, o nome da coluna aparece como <span class="accent-red">"\ufeffNome"</span> em vez de <span class="accent-green">"Nome"</span> — quebrando qualquer join ou seleção por nome.
+          </p>
+          <div class="code-block" style="margin-top:var(--gap-sm);">
+            <div class="code-header">
+              <div class="code-dot" style="background:#f38ba8"></div>
+              <div class="code-dot" style="background:#f9e2af"></div>
+              <span>bom_fix.py</span>
+            </div>
+            <code>
+<span class="code-line"><span class="tok-comment"># ❌ sem tratamento</span></span>
+<span class="code-line"><span class="tok-var">df</span>[<span class="tok-string">'Nome'</span>]  <span class="tok-comment"># KeyError: 'Nome'</span></span>
+<span class="code-line"><span class="tok-var">df</span>[<span class="tok-string">'\ufeffNome'</span>]  <span class="tok-comment"># isso que existe</span></span>
+<span class="code-line"></span>
+<span class="code-line"><span class="tok-comment"># ✅ utf-8-sig remove o BOM automaticamente</span></span>
+<span class="code-line"><span class="tok-var">df</span> = <span class="tok-var">pd</span>.<span class="tok-func">read_csv</span>(<span class="tok-param">path</span>,</span>
+<span class="code-line">         <span class="tok-param">encoding</span>=<span class="tok-string">'utf-8-sig'</span>)</span>
+<span class="code-line"><span class="tok-var">df</span>[<span class="tok-string">'Nome'</span>]  <span class="tok-comment"># ✓ funciona</span></span>
+            </code>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SLIDE 8b — ENCODING: ACENTOS E NORMALIZAÇÃO -->
+  <!-- ============================================================ -->
+  <div class="slide" id="slide-7b">
+    <div class="deco-line" style="background:linear-gradient(180deg,transparent,var(--teal),transparent);"></div>
+
+    <div class="content">
+      <div class="tag anim-tag" style="color:var(--teal);border-color:color-mix(in srgb, var(--teal) 30%, transparent);background:color-mix(in srgb, var(--teal) 10%, transparent);">unicode + acentos</div>
+      <h2 class="anim-h1">Normalização de Acentos e Unicode</h2>
+
+      <div class="split anim-sub" style="align-items:start;gap:clamp(0.8rem,2vw,1.8rem);">
+        <div>
+          <h3 style="color:var(--teal);margin-bottom:var(--gap-sm);">Por que o mesmo caractere pode ter dois bytes diferentes?</h3>
+          <p style="max-width:none;font-size:var(--body-lg);margin-bottom:var(--gap-md);">
+            Unicode permite representar o <span class="accent-teal">ã</span> de duas formas: como um único codepoint composto (NFC) ou como <span class="accent-yellow">a + til</span> separados (NFD). Para o olho humano são idênticos; para o computador, são strings diferentes — o que quebra comparações e joins.
+          </p>
+
+          <table class="ba-table" style="font-size:var(--body-sm);">
+            <thead>
+              <tr><th>Situação</th><th>Resultado visível</th><th style="text-align:center">Bytes</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="color:var(--subtext0)">Latin-1 lido como UTF-8</td>
+                <td class="bad">caf�</td>
+                <td style="text-align:center;color:var(--red)">corrompido</td>
+              </tr>
+              <tr>
+                <td style="color:var(--subtext0)">NFC vs NFD no join</td>
+                <td class="bad">"ação" ≠ "ação"</td>
+                <td style="text-align:center;color:var(--yellow)">2 vs 3 bytes</td>
+              </tr>
+              <tr>
+                <td style="color:var(--subtext0)">Após unicodedata.normalize</td>
+                <td class="good">"ação" == "ação"</td>
+                <td style="text-align:center;color:var(--green)">✓ igual</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="code-block">
+          <div class="code-header">
+            <div class="code-dot" style="background:#f38ba8"></div>
+            <div class="code-dot" style="background:#f9e2af"></div>
+            <div class="code-dot" style="background:#a6e3a1"></div>
+            <span>unicode_normalize.py</span>
+          </div>
+          <code>
+<span class="code-line"><span class="tok-keyword">import</span> <span class="tok-param">unicodedata</span></span>
+<span class="code-line"></span>
+<span class="code-line"><span class="tok-comment"># Normaliza para NFC (forma canônica composta)</span></span>
+<span class="code-line"><span class="tok-keyword">def</span> <span class="tok-func">normalizar_unicode</span>(<span class="tok-param">v</span>):</span>
+<span class="code-line">    <span class="tok-keyword">return</span> <span class="tok-var">unicodedata</span>.<span class="tok-func">normalize</span>(<span class="tok-string">'NFC'</span>, <span class="tok-param">v</span>)</span>
+<span class="code-line"></span>
+<span class="code-line"><span class="tok-comment"># Remove acentos (para slugs / chaves de join)</span></span>
+<span class="code-line"><span class="tok-keyword">def</span> <span class="tok-func">sem_acento</span>(<span class="tok-param">v</span>):</span>
+<span class="code-line">    <span class="tok-param">norm</span> = <span class="tok-var">unicodedata</span>.<span class="tok-func">normalize</span>(<span class="tok-string">'NFD'</span>, <span class="tok-param">v</span>)</span>
+<span class="code-line">    <span class="tok-keyword">return</span> <span class="tok-string">''</span>.<span class="tok-func">join</span>(</span>
+<span class="code-line">        <span class="tok-param">c</span> <span class="tok-keyword">for</span> <span class="tok-param">c</span> <span class="tok-keyword">in</span> <span class="tok-param">norm</span></span>
+<span class="code-line">        <span class="tok-keyword">if</span> <span class="tok-var">unicodedata</span>.<span class="tok-func">category</span>(<span class="tok-param">c</span>) != <span class="tok-string">'Mn'</span></span>
+<span class="code-line">    )</span>
+<span class="code-line"></span>
+<span class="code-line"><span class="tok-comment"># "ação" → "acao"</span></span>
+<span class="code-line"><span class="tok-func">sem_acento</span>(<span class="tok-string">"ação"</span>)  <span class="tok-comment"># → 'acao'</span></span>
+          </code>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SLIDE 9 — VALIDAÇÃO E QUALIDADE -->
+  <!-- ============================================================ -->
+  <div class="slide slide-bg-mantle" id="slide-8">
+    <div class="deco-blob" style="width:400px;height:400px;background:var(--green);bottom:-150px;right:-100px;opacity:0.10;"></div>
+
+    <div class="content">
+      <div class="tag anim-tag" style="color:var(--green);border-color:color-mix(in srgb, var(--green) 30%, transparent);background:color-mix(in srgb, var(--green) 10%, transparent);">✔ qualidade</div>
+      <h2 class="anim-h1">Validação e Qualidade de Dados</h2>
+
+      <p class="anim-sub" style="max-width:none;margin-bottom:var(--gap-md);">
+        Limpeza sem validação é incompleta — não há garantia de que os dados resultantes seguem as regras esperadas. A validação formaliza essas expectativas como contratos verificáveis.
+      </p>
+
+      <div class="card-grid card-grid-2 anim-grid">
+        <div class="card">
+          <span class="card-icon">📐</span>
+          <h3 style="color:var(--blue)">Schema Validation</h3>
+          <p>Ferramentas como <strong>Pandera</strong> e <strong>Great Expectations</strong> permitem descrever o formato esperado de cada coluna — tipo, range, padrão regex, unicidade — e verificar automaticamente se o DataFrame está em conformidade.</p>
+        </div>
+        <div class="card">
+          <span class="card-icon">📊</span>
+          <h3 style="color:var(--mauve)">Data Profiling</h3>
+          <p>O <strong>ydata-profiling</strong> gera um relatório HTML com distribuições de valores, taxa de nulos, valores únicos, correlações e alertas automáticos de anomalias — sem escrever uma linha de análise manual.</p>
+        </div>
+        <div class="card">
+          <span class="card-icon">🔁</span>
+          <h3 style="color:var(--teal)">Testes de Regressão</h3>
+          <p>O pipeline de limpeza pode ser testado como qualquer código de produção. Fixtures com dados problemáticos reais garantem que correções anteriores não sejam revertidas em futuras alterações.</p>
+        </div>
+        <div class="card">
+          <span class="card-icon">🗂</span>
+          <h3 style="color:var(--peach)">Auditoria de Mudanças</h3>
+          <p>Cada transformação aplicada ao dado pode ser registrada com antes/depois, data e regra aplicada — essencial para rastreabilidade, compliance e depuração de erros futuros.</p>
+        </div>
+      </div>
+
+      <div class="quote-block anim-body">
+        <blockquote>"Data quality is not a one-time project — it is a continuous practice."</blockquote>
+        <cite>— DAMA International, DMBOK</cite>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SLIDE 10 — FERRAMENTAS -->
+  <!-- ============================================================ -->
+  <div class="slide" id="slide-9">
+    <div class="deco-grid"></div>
+    <div class="deco-blob" style="width:400px;height:400px;background:var(--sapphire);top:-100px;right:0;opacity:0.10;"></div>
+
+    <div class="content">
+      <div class="tag anim-tag" style="color:var(--sky);border-color:color-mix(in srgb, var(--sky) 30%, transparent);background:color-mix(in srgb, var(--sky) 10%, transparent);">🧰 ferramentas</div>
+      <h2 class="anim-h1">Ecossistema de Ferramentas</h2>
+
+      <div class="card-grid anim-grid">
+        <div class="card">
+          <span class="card-icon">🐼</span>
+          <h3>Pandas</h3>
+          <p>Base de tudo. str accessor, apply, map, replace. Essencial para limpeza tabelar.</p>
+        </div>
+        <div class="card">
+          <span class="card-icon">⚡</span>
+          <h3>rapidfuzz</h3>
+          <p>Fuzzy matching de alta performance em C++. Substitui o fuzzywuzzy (10–100× mais rápido).</p>
+        </div>
+        <div class="card">
+          <span class="card-icon">📝</span>
+          <h3>re / regex</h3>
+          <p>Módulo padrão Python para padrões textuais. <code style="color:var(--mauve)">regex</code> traz Unicode completo.</p>
+        </div>
+        <div class="card">
+          <span class="card-icon">🌐</span>
+          <h3>Unidecode</h3>
+          <p>Transliteração de Unicode para ASCII. Fundamental para slugs e chaves de join.</p>
+        </div>
+        <div class="card">
+          <span class="card-icon">🦅</span>
+          <h3>Pandera</h3>
+          <p>Validação de DataFrames por schema tipado. Integra com pytest para CI/CD de dados.</p>
+        </div>
+        <div class="card">
+          <span class="card-icon">📈</span>
+          <h3>ydata-profiling</h3>
+          <p>Relatório HTML automático com estatísticas, alertas de qualidade e correlações.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SLIDE 11 — BOAS PRÁTICAS -->
+  <!-- ============================================================ -->
+  <div class="slide slide-bg-mantle" id="slide-10">
+    <div class="deco-line" style="background:linear-gradient(180deg,transparent,var(--yellow),transparent);"></div>
+    <div class="deco-blob" style="width:500px;height:300px;background:var(--yellow);bottom:-100px;left:-100px;opacity:0.08;border-radius:50%;"></div>
+
+    <div class="content">
+      <div class="tag anim-tag" style="color:var(--yellow);border-color:color-mix(in srgb, var(--yellow) 30%, transparent);background:color-mix(in srgb, var(--yellow) 10%, transparent);">★ boas práticas</div>
+      <h2 class="anim-h1">Boas Práticas de Data Cleansing</h2>
+
+      <ul class="bullet-list anim-sub">
+        <li><strong class="accent-yellow">Dado bruto preservado</strong> — uma camada raw imutável garante que as transformações sejam sempre reversíveis e auditáveis (lake pattern).</li>
+        <li><strong class="accent-green">Documentação das regras</strong> — cada decisão de limpeza registra quem a definiu, por quê e qual era o problema original que a motivou.</li>
+        <li><strong class="accent-blue">Versionamento do pipeline</strong> — scripts de limpeza têm o mesmo ciclo de vida que código de aplicação: Git, revisão de código, histórico de mudanças.</li>
+        <li><strong class="accent-peach">Validação em produção</strong> — assertions e checks em tempo de execução detectam quando novos dados fogem dos padrões esperados (data drift).</li>
+        <li><strong class="accent-mauve">Colaboração com o domínio</strong> — o que é "dado sujo" depende das regras de negócio, não apenas de critérios técnicos.</li>
+        <li><strong class="accent-teal">Profiling periódico</strong> — relatórios automáticos de qualidade como parte recorrente do pipeline, não só em fase de desenvolvimento.</li>
+      </ul>
+    </div>
+  </div>
+
+
+</div><!-- /deck -->
+
+<!-- === NAVIGATION === -->
+<nav id="nav" aria-label="Navegação de slides"></nav>
+
+<script>
+var slides = Array.from(document.querySelectorAll('.slide'));
+var nav = document.getElementById('nav');
+var current = 0;
+var busy = false;
+
+slides.forEach(function(_, i) {
+  var dot = document.createElement('button');
+  dot.className = 'nav-dot' + (i === 0 ? ' active' : '');
+  dot.setAttribute('aria-label', 'Slide ' + (i + 1));
+  dot.addEventListener('click', function() { goTo(i); });
+  nav.appendChild(dot);
+});
+
+var counter = document.createElement('span');
+counter.id = 'slide-counter';
+counter.textContent = '1 / ' + slides.length;
+nav.appendChild(counter);
+
+function goTo(index) {
+  if (busy || index === current) return;
+  if (index < 0 || index >= slides.length) return;
+  busy = true;
+
+  slides[current].classList.remove('active');
+  slides[current].classList.add('exit');
+  slides[index].classList.add('active');
+
+  document.querySelectorAll('.nav-dot').forEach(function(d, i) {
+    d.classList.toggle('active', i === index);
+  });
+
+  counter.textContent = (index + 1) + ' / ' + slides.length;
+  current = index;
+
+  setTimeout(function() {
+    slides.forEach(function(s) { s.classList.remove('exit'); });
+    busy = false;
+  }, 500);
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') {
+    e.preventDefault(); goTo(current + 1);
+  } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+    e.preventDefault(); goTo(current - 1);
+  }
+});
+
+var touchX = 0;
+document.addEventListener('touchstart', function(e) {
+  touchX = e.changedTouches[0].clientX;
+}, { passive: true });
+document.addEventListener('touchend', function(e) {
+  var dx = e.changedTouches[0].clientX - touchX;
+  if (Math.abs(dx) > 50) goTo(dx < 0 ? current + 1 : current - 1);
+}, { passive: true });
+
+var wheelCooldown = false;
+document.addEventListener('wheel', function(e) {
+  if (wheelCooldown) return;
+  wheelCooldown = true;
+  setTimeout(function() { wheelCooldown = false; }, 750);
+  goTo(e.deltaY > 0 ? current + 1 : current - 1);
+}, { passive: true });
+</script>
+
+</body>
+</html>
