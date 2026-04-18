@@ -1,4 +1,4 @@
-# Mineira-o-de-dados
+# Mineiração de dados
 
 Repositório para armazenar as atividades de Mineiração de Dados do professor Feichas.
 
